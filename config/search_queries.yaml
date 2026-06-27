@@ -1,0 +1,59 @@
+queries:
+  - name: "Москва 1-комн вторичка до 12 млн"
+    enabled: true
+    source: cian
+    interval_minutes: 60
+    max_pages: 5
+    params:
+      city: "Москва"
+      type: "secondary"
+      rooms: [1]
+      price_from: 4000000
+      price_to: 12000000
+      area_from: 25
+      area_to: 45
+      build_year_from: 1990
+
+  - name: "Москва 2-комн вторичка до 18 млн"
+    enabled: true
+    source: cian
+    interval_minutes: 60
+    max_pages: 5
+    params:
+      city: "Москва"
+      type: "secondary"
+      rooms: [2]
+      price_from: 7000000
+      price_to: 18000000
+      area_from: 40
+      area_to: 70
+      build_year_from: 1990
+
+  - name: "Москва 1-2 комн новостройка до 15 млн"
+    enabled: true
+    source: cian
+    interval_minutes: 120
+    max_pages: 3
+    params:
+      city: "Москва"
+      type: "new_build"
+      rooms: [1, 2]
+      price_from: 5000000
+      price_to: 15000000
+      area_from: 25
+      area_to: 60
+
+  - name: "МО 2-3 комн вторичка до 10 млн"
+    enabled: false
+    source: cian
+    interval_minutes: 120
+    max_pages: 5
+    params:
+      city: "Московская область"
+      type: "secondary"
+      rooms: [2, 3]
+      price_from: 3000000
+      price_to: 10000000
+      area_from: 40
+      area_to: 80
+      build_year_from: 2000

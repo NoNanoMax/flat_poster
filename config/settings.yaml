@@ -1,0 +1,55 @@
+# LLM (vllm local)
+llm:
+  base_url: "http://localhost:8000/v1"
+  model: "qwen36"
+  temperature: 0.3
+  max_tokens: 2000
+  reasoning_enabled: true          # для первичной оценки
+  reasoning_for_recheck: false     # для перепроверки холодной базы
+
+# Telegram
+telegram:
+  token: "${TELEGRAM_TOKEN}"       # из .env
+  channel_id: "${TELEGRAM_CHANNEL}" # из .env
+  test_mode: true                  # true = в консоль/лог, false = в канал
+
+# Database
+database:
+  url: "sqlite+aiosqlite:///./data/realty.db"
+
+# Logging
+logging:
+  level: "INFO"
+  file: "logs/app.log"
+  rotation: "10 MB"
+  retention: "30 days"
+
+# Scraper
+scraper:
+  delay_between_requests: 2.0      # секунды
+  delay_between_pages: 3.0
+  max_pages_per_query: 5
+  timeout: 30
+  user_agents:
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    - "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0"
+    - "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15"
+
+# Scheduler (intervals in minutes)
+scheduler:
+  fetch_listings_interval_min: 60
+  fetch_details_interval_min: 15
+  evaluate_new_interval_min: 20
+  check_cold_storage_interval_min: 120
+  cleanup_interval_hours: 24
+  market_stats_interval_hours: 24
+
+# Cold storage
+cold_storage:
+  warm_check_interval_hours: 24
+  cold_check_interval_hours: 72
+  max_checks_before_remove: 5
+  ttl_days: 30
+  price_drop_threshold_pct: 5.0
