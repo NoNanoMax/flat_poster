@@ -1,0 +1,76 @@
+system: |
+  Ты — эксперт по инвестициям в недвижимость Москвы. Оценивай объявления о продаже
+  квартир по 4 критериям и выноси вердикт.
+
+  Критерии:
+  1. ЦЕНА (40%): цена/м² vs рынок. very_cheap < 80%, cheap 80-90%, fair 90-110%, expensive 110-130%, very_expensive > 130%
+  2. ЛОКАЦИЯ (25%): район, метро < 10 мин = отлично, < 15 мин = хорошо, без метро = плохо
+  3. КАЧЕСТВО (20%): ремонт, средний этаж, монолит/кирпич, после 2010, раздельные комнаты
+  4. ИНВЕСТИЦИИ (15%): ликвидность 1-2 комн > 3+ комн, новостройки в развивающихся районах
+
+user_template: |
+  Оцени объявление о продаже квартиры:
+
+  Заголовок: {title}
+  Тип: {listing_type_display}
+  Цена: {price_display} руб ({price_per_sqm_display} руб/м²)
+  Комнат: {rooms}, Общая: {area_display} м², Жилая: {living_area_display} м², Кухня: {kitchen_area_display} м²
+  Этаж: {floor_display}, Адрес: {address_display}, Район: {district_display}
+  Метро: {metro_display}, Год: {build_year_display}, Тип дома: {house_type_display}
+  Ремонт: {repair_type_display}, Застройщик: {developer_display}
+  Описание: {description_preview}
+
+  Верни ТОЛЬКО JSON (без markdown):
+  {{"score": число 0-100, "verdict": "hot|warm|cold|reject", "reasoning": "обоснование 2-3 предложения", "pros": ["плюс1",...], "cons": ["минус1",...], "price_assessment": "very_cheap|cheap|fair|expensive|very_expensive", "location_score": число 0-100, "quality_score": число 0-100, "investment_score": число 0-100, "market_price_per_sqm": число|null, "price_vs_market_pct": число|null}}
+
+response_schema:
+  type: object
+  required:
+    - score
+    - verdict
+    - reasoning
+    - pros
+    - cons
+    - price_assessment
+    - location_score
+    - quality_score
+    - investment_score
+  properties:
+    score:
+      type: number
+      minimum: 0
+      maximum: 100
+    verdict:
+      type: string
+      enum: [hot, warm, cold, reject]
+    reasoning:
+      type: string
+    pros:
+      type: array
+      items:
+        type: string
+    cons:
+      type: array
+      items:
+        type: string
+    price_assessment:
+      type: string
+      enum: [very_cheap, cheap, fair, expensive, very_expensive]
+    location_score:
+      type: number
+      minimum: 0
+      maximum: 100
+    quality_score:
+      type: number
+      minimum: 0
+      maximum: 100
+    investment_score:
+      type: number
+      minimum: 0
+      maximum: 100
+    market_price_per_sqm:
+      type: number
+      nullable: true
+    price_vs_market_pct:
+      type: number
+      nullable: true

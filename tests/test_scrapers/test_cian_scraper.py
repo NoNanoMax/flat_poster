@@ -32,7 +32,9 @@ class TestCianScraperBuildUrls:
     def test_build_search_url_basic(self, scraper: CianScraper):
         query = SearchQuery(
             name="test",
-            params=SearchParams(city="Москва", listing_type="secondary", rooms=[1], price_from=4000000, price_to=12000000),
+            params=SearchParams(
+                city="Москва", listing_type="secondary", rooms=[1], price_from=4000000, price_to=12000000
+            ),
         )
         url = scraper._build_search_url(query, page=1)
         assert url.startswith("https://cian.ru/cat.php?")
@@ -132,10 +134,15 @@ class TestRawListingModel:
 
     def test_to_dict_with_photos_json(self):
         import json
+
         bl = RawListing(
-            cian_id=1, url="https://test.ru", price=100, listing_type="secondary",
+            cian_id=1,
+            url="https://test.ru",
+            price=100,
+            listing_type="secondary",
             photos=["https://a.jpg", "https://b.jpg"],
-            rooms=2, area=50.0,
+            rooms=2,
+            area=50.0,
         )
         d = bl.to_dict()
         assert d["cian_id"] == 1
@@ -155,8 +162,12 @@ class TestRawListingModel:
 
     def test_to_dict_includes_non_none(self):
         bl = RawListing(
-            cian_id=1, url="https://test.ru", price=100, listing_type="secondary",
-            rooms=0, area=0.0,
+            cian_id=1,
+            url="https://test.ru",
+            price=100,
+            listing_type="secondary",
+            rooms=0,
+            area=0.0,
         )
         d = bl.to_dict()
         # 0 and 0.0 are not None, so they should be included

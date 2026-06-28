@@ -98,8 +98,12 @@ class TestRawListing:
 
     def test_to_dict_serializes_photos_as_json(self):
         import json
+
         bl = RawListing(
-            cian_id=123, url="https://test.ru", price=1000000, listing_type="secondary",
+            cian_id=123,
+            url="https://test.ru",
+            price=1000000,
+            listing_type="secondary",
             photos=["https://photo1.jpg", "https://photo2.jpg"],
         )
         d = bl.to_dict()

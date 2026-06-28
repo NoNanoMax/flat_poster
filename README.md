@@ -5,7 +5,7 @@
 ## Возможности
 
 - **Парсинг Циана** (✅ реализовано) — извлекает поиск + детали карточки через cloudscraper с обходом анти-бота
-- **LLM-оценка** каждого объявления: цена, локация, качество, инвестиционный потенциал
+- **LLM-оценка** (✅ реализовано) — qwen36 через vLLM: цена, локация, качество, инвестиционный потенциал
 - **Telegram-уведомления** о лучших вариантах (hot deals)
 - **Холодная база** — отслеживание потенциально интересных вариантов, перепроверка при снижении цены
 - **Автоматическая очистка** — удаление просроченных и неактуальных объявлений
@@ -173,6 +173,45 @@ detailed = await scraper.fetch_listing_details(cian_id, brief=brief)
 | Москва | 1 |
 | Московская область | 650 |
 
+## Агент-оценщик (реализовано)
+
+Оценка объявлений через локальную LLM (qwen36 через vLLM):
+
+### Архитектура
+```
+Listing (БД) → EvaluationAgent → LLMClient → vLLM (qwen36) → JSON → EvaluationResult → БД
+```
+
+### Критерии оценки
+- **Цена (40%)** — цена/м² vs рынок района
+- **Локация (25%)** — район, метро, инфраструктура
+- **Качество (20%)** — ремонт, этаж, тип дома, год постройки
+- **Инвестиции (15%)** — ликвидность, потенциал роста
+
+### Использование
+
+```python
+from src.config.settings import settings
+from src.agents.agent_runner import LLMClient
+from src.agents.evaluator import EvaluationAgent
+
+llm = LLMClient(settings.llm)
+agent = EvaluationAgent(llm)
+
+# Оценка одного объявления
+result = await agent.evaluate(listing)
+# → score=85, verdict="hot", pros=[...], cons=[...]
+
+# Пакетная оценка + сохранение в БД
+results = await agent.evaluate_batch(session, limit=10)
+```
+
+### Технические детали
+- Модель qwen36 **всегда** пишет reasoning (built-in), финальный ответ в `content`
+- JSON mode: `response_format={"type": "json_object"}` + `enable_thinking=False`
+- Auto retry при truncation (увеличение max_tokens ×1.5)
+- max_tokens ≥ 4000 для полных оценок
+
 ## Режимы работы
 
 | Режим | `test_mode` | Куда вывод |
@@ -234,8 +273,8 @@ make clean
 ## Roadmap
 
 - [x] Этап 1: Фундамент (БД, конфиги, main)
-- [x] Этап 2: Парсинг Циана (search page + listing details, cloudscraper)
-- [ ] Этап 3: Агент-оценщик (LLM)
+- [x] Этап 2: Парсинг Циана (search page + listing details, cloudscraper, 48 тестов)
+- [x] Этап 3: Агент-оценщик (LLMClient, EvaluationAgent, vLLM qwen36, 16 тестов)
 - [ ] Этап 4: Уведомления (Telegram + console)
 - [ ] Этап 5: Холодная база
 - [ ] Этап 6: Планировщик + интеграция
