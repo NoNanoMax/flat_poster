@@ -238,13 +238,37 @@ results = await agent.evaluate_batch(session, limit=10)
 | ❄️ COLD | 40–59 | Холодная база, проверка каждые 72ч |
 | ✗ REJECT | 0–39 | Не храним |
 
-## Холодная база
+## Холодная база (реализовано)
+
+Система отслеживания потенциально интересных вариантов с периодической перепроверкой:
 
 - **WARM:** перепроверка каждые 24 часа
 - **COLD:** перепроверка каждые 72 часа
 - При снижении цены > 5% → переоценка через LLM
+- Если переоценка дала HOT → автоматическое уведомление в Telegram (эскалация)
 - После 5 проверок без улучшений → удаление
 - Максимальный TTL: 30 дней
+
+### Использование
+
+```python
+from src.cold_storage.manager import ColdStorageManager
+
+manager = ColdStorageManager(
+    settings=settings.cold_storage,
+    scraper=scraper,
+    evaluator=evaluator,
+    notifier=notifier,
+)
+
+# Перепроверить холодную базу
+stats = await manager.run_check(session)
+# → {"checked": 12, "re_evaluated": 3, "escalated": 1, "skipped": 7, "removed": 1, "errors": 0}
+
+# Очистить просроченные
+removed = await manager.run_cleanup(session)
+# → 5
+```
 
 ## Разработка
 
@@ -276,7 +300,7 @@ make clean
 - [x] Этап 2: Парсинг Циана (search page + listing details, cloudscraper, 48 тестов)
 - [x] Этап 3: Агент-оценщик (LLMClient, EvaluationAgent, vLLM qwen36, 16 тестов)
 - [x] Этап 4: Уведомления (Telegram + console, 32 теста)
-- [ ] Этап 5: Холодная база (стратегии warm/cold, переоценка, TTL)
+- [x] Этап 5: Холодная база (стратегии warm/cold, переоценка, TTL, 39 тестов)
 - [ ] Этап 6: Планировщик + интеграция (APScheduler, glue всех компонентов)
 - [ ] Этап 7: Market Analyst Agent (LLM генерирует поисковые запросы)
 - [ ] Этап 8: Полировка (документация, скрипты, финальные тесты)
