@@ -4,7 +4,7 @@
 
 ## Возможности
 
-- **Периодический парсинг** Циана по настраиваемым запросам (новостройки и вторичка)
+- **Парсинг Циана** (✅ реализовано) — извлекает поиск + детали карточки через cloudscraper с обходом анти-бота
 - **LLM-оценка** каждого объявления: цена, локация, качество, инвестиционный потенциал
 - **Telegram-уведомления** о лучших вариантах (hot deals)
 - **Холодная база** — отслеживание потенциально интересных вариантов, перепроверка при снижении цены
@@ -138,6 +138,41 @@ TELEGRAM_TOKEN=your_bot_token
 TELEGRAM_CHANNEL=@your_channel
 ```
 
+## Скрапер Циана (реализовано)
+
+Скрапер использует `cloudscraper` для обхода анти-бота и парсит inline-JSON из `<script>` тегов:
+
+### Страница поиска
+- URL: `https://cian.ru/cat.php?p=1&deal_type=sale&offer_type=flat&region=1&...`
+- Извлекает массив `products` из inline JSON
+- Поля: `cianId`, `price`, `objectType`, `photosCount`, `owner`, `goodPrice`
+
+### Страница объявления
+- URL: `https://www.cian.ru/sale/flat/<cianId>/`
+- Извлекает объект `offerData.offer` из inline JSON
+- Поля: `title`, `description`, `roomsCount`, `totalArea`, `livingArea`, `kitchenArea`, `floorNumber`, `building`, `geo.address`, `geo.undergrounds`, `geo.jk`, `photos`, `repairType`, `isByHomeowner`
+
+### Использование в коде
+
+```python
+from src.config.settings import settings
+from src.scrapers.cian import CianScraper
+
+scraper = CianScraper(settings.scraper)
+
+# Поиск
+brief_listings = await scraper.fetch_search_page(query, page=1)
+
+# Детали
+detailed = await scraper.fetch_listing_details(cian_id, brief=brief)
+```
+
+### Region IDs
+| Город | ID |
+|-------|-----|
+| Москва | 1 |
+| Московская область | 650 |
+
 ## Режимы работы
 
 | Режим | `test_mode` | Куда вывод |
@@ -199,7 +234,7 @@ make clean
 ## Roadmap
 
 - [x] Этап 1: Фундамент (БД, конфиги, main)
-- [ ] Этап 2: Парсинг Циана
+- [x] Этап 2: Парсинг Циана (search page + listing details, cloudscraper)
 - [ ] Этап 3: Агент-оценщик (LLM)
 - [ ] Этап 4: Уведомления (Telegram + console)
 - [ ] Этап 5: Холодная база
