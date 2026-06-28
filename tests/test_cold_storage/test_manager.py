@@ -117,7 +117,9 @@ class TestRunCheck:
         # next_check_at should be updated (warm strategy = 24h)
         assert mock_listing.next_check_at is not None
 
-    async def test_re_evaluate_action(self, manager, mock_session, mock_scraper, mock_evaluator, mock_listing, settings):
+    async def test_re_evaluate_action(
+        self, manager, mock_session, mock_scraper, mock_evaluator, mock_listing, settings
+    ):
         """Price dropped → RE_EVALUATE."""
         raw = MagicMock(price=9_000_000)  # 10% drop
         mock_scraper.fetch_listing_details.return_value = raw
@@ -137,7 +139,9 @@ class TestRunCheck:
         assert stats["re_evaluated"] == 1
         mock_evaluator.evaluate_and_save.assert_called_once()
 
-    async def test_escalate_action(self, manager, mock_session, mock_scraper, mock_evaluator, mock_listing, mock_notifier, settings):
+    async def test_escalate_action(
+        self, manager, mock_session, mock_scraper, mock_evaluator, mock_listing, mock_notifier, settings
+    ):
         """Price dropped → re-eval → HOT → ESCALATE + notification."""
         raw = MagicMock(price=8_500_000)  # 15% drop
         mock_scraper.fetch_listing_details.return_value = raw
@@ -279,10 +283,12 @@ class TestRunCleanup:
         listing_repo = MagicMock()
         listing_repo.get_expired = AsyncMock(return_value=[])
         # get_by_status called twice: "warm" → [old_listing], "cold" → []
-        listing_repo.get_by_status = AsyncMock(side_effect=[
-            [old_listing],  # warm
-            [],             # cold
-        ])
+        listing_repo.get_by_status = AsyncMock(
+            side_effect=[
+                [old_listing],  # warm
+                [],  # cold
+            ]
+        )
         listing_repo.delete = AsyncMock()
 
         with patch("src.cold_storage.manager.ListingRepo", return_value=listing_repo):
@@ -315,10 +321,12 @@ class TestRunCleanup:
         listing_repo = MagicMock()
         listing_repo.get_expired = AsyncMock(return_value=[expired1])
         # get_by_status called twice: "warm" → [expired2], "cold" → []
-        listing_repo.get_by_status = AsyncMock(side_effect=[
-            [expired2],  # warm
-            [],          # cold
-        ])
+        listing_repo.get_by_status = AsyncMock(
+            side_effect=[
+                [expired2],  # warm
+                [],  # cold
+            ]
+        )
         listing_repo.delete = AsyncMock()
 
         with patch("src.cold_storage.manager.ListingRepo", return_value=listing_repo):
