@@ -12,9 +12,13 @@ from src.config.queries import load_search_queries
 from src.config.settings import settings
 from src.db.engine import close_db, init_db, session_scope
 from src.db.repository import SearchQueryRepo
+from src.scheduler.runner import SchedulerRunner
+
+# Global reference for signal handler
+_runner: SchedulerRunner | None = None
 
 
-async def seed_queries():
+async def seed_queries() -> None:
     """Load YAML queries into DB if not already present."""
     yaml_queries = load_search_queries()
     async with session_scope() as session:
@@ -23,7 +27,9 @@ async def seed_queries():
     logger.info("Seeded {} new queries from YAML", count)
 
 
-async def main():
+async def main() -> None:
+    global _runner
+
     logger.info("═══════════════════════════════════════════")
     logger.info("  Flat Parser — starting up")
     logger.info("═══════════════════════════════════════════")
@@ -35,15 +41,16 @@ async def main():
     # 2. Seed queries from YAML
     await seed_queries()
 
-    # 3. Start scheduler (TODO: implement in later stages)
-    logger.info("Scheduler would start here (stage 6)")
-    logger.info("Test mode: {}", settings.telegram.test_mode)
+    # 3. Start scheduler
+    _runner = SchedulerRunner()
+    _runner.start()
 
-    # Graceful shutdown
-    logger.info("Shutdown (stage 1 complete — foundation ready)")
+    # 4. Wait forever — scheduler runs in background
+    logger.info("All systems running. Press Ctrl+C to stop.")
+    await asyncio.Event().wait()
 
 
-def setup_logging():
+def setup_logging() -> None:
     """Configure loguru logging."""
     log_cfg = settings.logging
 
@@ -76,7 +83,9 @@ if __name__ == "__main__":
     loop = asyncio.new_event_loop()
 
     # Graceful shutdown on SIGINT/SIGTERM
-    def _shutdown(sig, frame):
+    def _shutdown(sig: int, frame):  # type: ignore[no-untyped-def]
+        if _runner:
+            _runner.shutdown()
         loop.stop()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
