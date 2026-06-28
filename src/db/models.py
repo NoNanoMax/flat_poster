@@ -136,6 +136,28 @@ class EvaluationLog(Base):
     # Relationship
     listing = relationship("Listing", back_populates="evaluations")
 
+    # ── Helpers ────────────────────────────────────────────────────────────
+
+    @property
+    def pros_list(self) -> list[str]:
+        """Parse pros JSON to list."""
+        if not self.pros:
+            return []
+        try:
+            return json.loads(self.pros)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    @property
+    def cons_list(self) -> list[str]:
+        """Parse cons JSON to list."""
+        if not self.cons:
+            return []
+        try:
+            return json.loads(self.cons)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
 
 # ── SearchQuery (DB storage) ────────────────────────────────────────────────
 
