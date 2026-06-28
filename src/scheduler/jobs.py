@@ -105,7 +105,9 @@ async def fetch_details_job() -> None:
                 )
                 errors += 1
 
-        logger.info("Fetch details: updated {}, errors {}, skipped {}", updated, errors, len(pending) - updated - errors)
+        logger.info(
+            "Fetch details: updated {}, errors {}, skipped {}", updated, errors, len(pending) - updated - errors
+        )
 
 
 # ── Job: evaluate_new ────────────────────────────────────────────────────────
