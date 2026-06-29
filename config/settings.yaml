@@ -12,8 +12,11 @@ telegram:
   token: "${TELEGRAM_TOKEN}"       # из .env
   channel_id: "${TELEGRAM_CHANNEL}" # из .env
   test_mode: true                  # true = в консоль/лог, false = в канал
+                                   # Переопределяется FLAT_ENV=production → test_mode=false
 
 # Database
+# Dev:  sqlite+aiosqlite:///./data/realty.db
+# Prod: postgresql+asyncpg://user:pass@host:5432/realty
 database:
   url: "sqlite+aiosqlite:///./data/realty.db"
 

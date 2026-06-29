@@ -12,6 +12,8 @@ from src.config.queries import load_search_queries
 from src.config.settings import settings
 from src.db.engine import close_db, init_db, session_scope
 from src.db.repository import SearchQueryRepo
+from src.health_server import _mark_scheduler_started, run_health_server
+from src.scheduler.jobs import evaluate_new_job, fetch_details_job, fetch_listings_job
 from src.scheduler.runner import SchedulerRunner
 
 # Global reference for signal handler
@@ -87,11 +89,20 @@ if __name__ == "__main__":
         # 2. Seed queries from YAML
         await seed_queries()
 
-        # 3. Start scheduler
+        # 3. Initial pipeline — parse → details → evaluate immediately on startup
+        logger.info("Running initial pipeline...")
+        await fetch_listings_job()
+        await fetch_details_job()
+        await evaluate_new_job()
+        logger.info("Initial pipeline complete.")
+
+        # 4. Start scheduler (periodic jobs)
         _runner = SchedulerRunner()
         _runner.start()
+        _mark_scheduler_started()
 
-        # 4. Wait until shutdown signal
+        # 4b. Start health server in background
+        _health_task = asyncio.create_task(run_health_server())  # noqa: RUF006 — keep ref to prevent GC
         logger.info("All systems running. Press Ctrl+C to stop.")
         await shutdown_event.wait()
 

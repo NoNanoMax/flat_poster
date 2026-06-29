@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 
 from loguru import logger
@@ -43,7 +43,7 @@ class Strategy:
 
     def next_check_at(self, listing: Listing) -> datetime:
         """Compute next_check_at for a listing under this strategy."""
-        return datetime.utcnow() + timedelta(hours=self.check_interval_hours)
+        return datetime.now(timezone.utc) + timedelta(hours=self.check_interval_hours)
 
 
 class WarmStrategy(Strategy):
@@ -78,7 +78,7 @@ class RemovalStrategy:
         # TTL expired
         if listing.created_at:
             ttl = timedelta(days=settings.ttl_days)
-            if datetime.utcnow() >= listing.created_at + ttl:
+            if datetime.now(timezone.utc) >= listing.created_at + ttl:
                 logger.info(
                     "Removing cian_id={}: TTL of {} days expired",
                     listing.cian_id,

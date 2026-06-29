@@ -1,0 +1,28 @@
+# ── Flat Parser — Docker Compose ─────────────────────────────────────────────
+# Usage:
+#   1. Ensure vLLM is running on localhost:8000 (managed externally)
+#   2. Copy .env.example -> .env and fill in secrets
+#   3. docker compose up -d
+#   4. docker compose logs -f app
+
+version: "3.9"
+
+services:
+  # ── Flat Parser app ────────────────────────────────────────────────────────
+  app:
+    build: .
+    container_name: flat_parser_app
+    environment:
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHANNEL=${TELEGRAM_CHANNEL}
+      - FLAT_ENV=${FLAT_ENV:-production}
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/logs
+      - ./config:/app/config:ro
+    # Healthcheck inherited from Dockerfile (port 8001)
+    restart: unless-stopped
+
+volumes:
+  app_data:
+  app_logs:

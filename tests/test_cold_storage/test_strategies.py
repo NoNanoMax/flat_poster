@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -37,7 +37,7 @@ def mock_listing():
     listing.last_verdict = "warm"
     listing.price = 10_000_000
     listing.cold_check_count = 2
-    listing.created_at = datetime.utcnow() - timedelta(days=10)
+    listing.created_at = datetime.now(timezone.utc) - timedelta(days=10)
     listing.ttl_days = 30
     return listing
 
@@ -52,7 +52,7 @@ class TestWarmStrategy:
 
     def test_next_check_at(self, mock_listing):
         strategy = WarmStrategy()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         mock_listing.created_at = now
         next_at = strategy.next_check_at(mock_listing)
         expected = now + timedelta(hours=24)
@@ -67,7 +67,7 @@ class TestColdStrategy:
 
     def test_next_check_at(self, mock_listing):
         strategy = ColdStrategy()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         next_at = strategy.next_check_at(mock_listing)
         expected = now + timedelta(hours=72)
         assert abs((next_at - expected).total_seconds()) < 1
@@ -89,27 +89,27 @@ class TestRemovalStrategy:
 
     def test_ttl_expired(self, mock_listing, settings):
         mock_listing.cold_check_count = 0
-        mock_listing.created_at = datetime.utcnow() - timedelta(days=31)
+        mock_listing.created_at = datetime.now(timezone.utc) - timedelta(days=31)
         removal = RemovalStrategy()
         assert removal.should_remove(mock_listing, settings) is True
 
     def test_ttl_not_expired(self, mock_listing, settings):
         mock_listing.cold_check_count = 0
-        mock_listing.created_at = datetime.utcnow() - timedelta(days=20)
+        mock_listing.created_at = datetime.now(timezone.utc) - timedelta(days=20)
         removal = RemovalStrategy()
         assert removal.should_remove(mock_listing, settings) is False
 
     def test_ttl_not_expired_at_boundary(self, mock_listing, settings):
         mock_listing.cold_check_count = 0
         # Exactly 30 days ago — should NOT remove (>= means expired)
-        mock_listing.created_at = datetime.utcnow() - timedelta(days=30)
+        mock_listing.created_at = datetime.now(timezone.utc) - timedelta(days=30)
         removal = RemovalStrategy()
         # 30 days ago == exactly at boundary → should_remove (utcnow >= created_at + 30d)
         assert removal.should_remove(mock_listing, settings) is True
 
     def test_no_removal_needed(self, mock_listing, settings):
         mock_listing.cold_check_count = 0
-        mock_listing.created_at = datetime.utcnow() - timedelta(days=5)
+        mock_listing.created_at = datetime.now(timezone.utc) - timedelta(days=5)
         removal = RemovalStrategy()
         assert removal.should_remove(mock_listing, settings) is False
 
@@ -159,7 +159,7 @@ class TestDetermineAction:
 
     def test_ttl_expired_remove(self, mock_listing, settings):
         """TTL expired → REMOVE regardless of price."""
-        mock_listing.created_at = datetime.utcnow() - timedelta(days=31)
+        mock_listing.created_at = datetime.now(timezone.utc) - timedelta(days=31)
         action = determine_action(mock_listing, 9_000_000, settings)
         assert action == CheckAction.REMOVE
 
@@ -171,7 +171,7 @@ class TestDetermineAction:
 
     def test_ttl_takes_priority_over_price_drop(self, mock_listing, settings):
         """Even if price dropped, TTL expiry still wins."""
-        mock_listing.created_at = datetime.utcnow() - timedelta(days=31)
+        mock_listing.created_at = datetime.now(timezone.utc) - timedelta(days=31)
         action = determine_action(mock_listing, 5_000_000, settings)
         assert action == CheckAction.REMOVE
 

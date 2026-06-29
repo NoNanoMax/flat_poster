@@ -138,6 +138,10 @@ def load_settings() -> Settings:
         # Resolve ${VAR} references
         tg_data["token"] = os.environ.get("TELEGRAM_TOKEN", tg_data.get("token", ""))
         tg_data["channel_id"] = os.environ.get("TELEGRAM_CHANNEL", tg_data.get("channel_id", ""))
+        # FLAT_ENV=production → force test_mode=false
+        flat_env = os.environ.get("FLAT_ENV", "").lower()
+        if flat_env == "production":
+            tg_data["test_mode"] = False
         settings.telegram = TelegramSettings(**tg_data)
     if "database" in yaml_data:
         settings.database = DatabaseSettings(**yaml_data["database"])

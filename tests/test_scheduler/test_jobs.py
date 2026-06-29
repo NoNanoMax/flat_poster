@@ -63,6 +63,8 @@ class TestFetchListingsJob:
         """Fetch new listings and upsert them."""
         with patch("src.scheduler.jobs.session_scope") as mock_scope:
             session = MagicMock()
+            session.commit = AsyncMock()
+            session.rollback = AsyncMock()
             mock_scope.return_value.__aenter__ = AsyncMock(return_value=session)
             mock_scope.return_value.__aexit__ = AsyncMock(return_value=False)
 

@@ -46,3 +46,6 @@ htmlcov/
 # Temporary files
 *.tmp
 *.bak
+
+# Benchmark / profiling artefacts (not needed in prod)
+benchmarks/

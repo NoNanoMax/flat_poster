@@ -2,6 +2,10 @@
 httpx>=0.27
 cloudscraper>=1.2
 
+# Health / monitoring
+fastapi>=0.110
+uvicorn>=0.29
+
 # Parsing
 beautifulsoup4>=4.12
 selectolax>=0.3

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -108,7 +108,7 @@ class ColdStorageManager:
             removed += 1
 
         # 2. TTL expired (created_at + ttl_days < now)
-        ttl_cutoff = datetime.utcnow() - timedelta(days=self._settings.ttl_days)
+        ttl_cutoff = datetime.now(timezone.utc) - timedelta(days=self._settings.ttl_days)
         warm_listings = list(await repo.get_by_status("warm"))
         cold_listings = list(await repo.get_by_status("cold"))
 
@@ -176,7 +176,7 @@ class ColdStorageManager:
 
         # SKIP — just bump next_check_at
         listing.next_check_at = strategy.next_check_at(listing)
-        listing.last_checked = datetime.utcnow()
+        listing.last_checked = datetime.now(timezone.utc)
         logger.info(
             "Skipped cian_id={} (price stable, next check: {})",
             listing.cian_id,

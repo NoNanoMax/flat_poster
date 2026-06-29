@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -97,7 +97,7 @@ class Listing(Base):
         if new_price == self.price:
             return False
         history: list[dict] = json.loads(self.price_history or "[]")  # type: ignore[arg-type]
-        history.append({"date": datetime.utcnow().isoformat(), "price": self.price})
+        history.append({"date": datetime.now(timezone.utc).isoformat(), "price": self.price})
         self.price = new_price
         self.price_history = json.dumps(history, ensure_ascii=False)
         if self.area and self.area > 0:

@@ -9,7 +9,7 @@
 - **Telegram-уведомления** о лучших вариантах (hot deals)
 - **Холодная база** — отслеживание потенциально интересных вариантов, перепроверка при снижении цены
 - **Автоматическая очистка** — удаление просроченных и неактуальных объявлений
-- **Market Analyst агент** — LLM анализирует рынок и корректирует поисковые запросы
+- **Market Analyst агент** (🚧 в планах) — LLM будет анализировать рынок и корректировать поисковые запросы
 
 ## Архитектура
 
@@ -288,6 +288,34 @@ make init
 # Очистка артефактов
 make clean
 ```
+
+## Деплой
+
+Полная инструкция — [DEPLOY.md](DEPLOY.md). Кратко:
+
+```bash
+# 1. Секреты
+cp .env.example .env
+nano .env   # TELEGRAM_TOKEN, TELEGRAM_CHANNEL, FLAT_ENV=production
+
+# 2. Запустить vLLM (отдельно, вручную)
+# docker run --gpus all -p 8000:8000 vllm/vllm-openai:latest --model Qwen/Qwen2.5-32B-Instruct ...
+
+# 3. Поднять приложение
+docker compose up -d
+
+# 4. Проверить
+curl http://localhost:8001/health
+```
+
+## Мониторинг
+
+| Endpoint | URL | Описание |
+|----------|-----|----------|
+| Health | `GET /health` (порт 8001) | Статус DB, LLM, scheduler → 200 (ok) / 503 (degraded) |
+| Ready | `GET /ready` (порт 8001) | Readiness probe — scheduler запущен? |
+| Логи | `logs/app.log` | loguru: rotation 10 MB, retention 30 дней |
+| Docker | `docker compose logs -f app` | Live-логи контейнера |
 
 ## CI/CD
 

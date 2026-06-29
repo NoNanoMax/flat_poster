@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,7 +41,7 @@ class ListingRepo:
             if new_price != existing.price:
                 # Append to history
                 history = json.loads(existing.price_history) if existing.price_history else []  # type: ignore[arg-type]
-                history.append({"date": datetime.utcnow().isoformat(), "price": existing.price})
+                history.append({"date": datetime.now(timezone.utc).isoformat(), "price": existing.price})
                 existing.price = new_price
                 existing.price_history = json.dumps(history, ensure_ascii=False)
 
@@ -49,7 +49,7 @@ class ListingRepo:
             for key, value in data.items():
                 if key != "cian_id" and value is not None:
                     setattr(existing, key, value)
-            existing.last_checked = datetime.utcnow()
+            existing.last_checked = datetime.now(timezone.utc)
         else:
             # New listing
             existing = Listing(**data)
@@ -82,7 +82,7 @@ class ListingRepo:
 
     async def get_for_cold_check(self) -> Sequence[Listing]:
         """Get warm/cold listings due for re-check."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         result = await self.session.execute(
             select(Listing).where(
                 and_(
@@ -187,7 +187,7 @@ class SearchQueryRepo:
             existing.interval_minutes = interval_minutes
             existing.max_pages = max_pages
             existing.enabled = True
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = datetime.now(timezone.utc)
             return existing
         else:
             sq = SearchQuery(

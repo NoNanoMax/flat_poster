@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -63,9 +63,9 @@ def mock_listing():
     listing.last_verdict = "warm"
     listing.price = 10_000_000
     listing.cold_check_count = 2
-    listing.created_at = datetime.utcnow() - timedelta(days=10)
+    listing.created_at = datetime.now(timezone.utc) - timedelta(days=10)
     listing.ttl_days = 30
-    listing.next_check_at = datetime.utcnow() - timedelta(hours=1)
+    listing.next_check_at = datetime.now(timezone.utc) - timedelta(hours=1)
     listing.last_checked = None
     listing.photos = None
     listing.last_score = 65.0
@@ -226,7 +226,7 @@ class TestRunCheck:
         listing1.last_verdict = "warm"
         listing1.price = 10_000_000
         listing1.cold_check_count = 2
-        listing1.created_at = datetime.utcnow() - timedelta(days=10)
+        listing1.created_at = datetime.now(timezone.utc) - timedelta(days=10)
         listing1.photos = None
 
         listing2 = MagicMock()
@@ -236,7 +236,7 @@ class TestRunCheck:
         listing2.last_verdict = "cold"
         listing2.price = 10_000_000
         listing2.cold_check_count = 4  # will be 5 → removed
-        listing2.created_at = datetime.utcnow() - timedelta(days=10)
+        listing2.created_at = datetime.now(timezone.utc) - timedelta(days=10)
         listing2.photos = None
 
         raw = MagicMock(price=10_000_000)  # same price for listing1
@@ -278,7 +278,7 @@ class TestRunCleanup:
         """Remove listings past TTL."""
         old_listing = MagicMock()
         old_listing.cian_id = 888
-        old_listing.created_at = datetime.utcnow() - timedelta(days=31)
+        old_listing.created_at = datetime.now(timezone.utc) - timedelta(days=31)
 
         listing_repo = MagicMock()
         listing_repo.get_expired = AsyncMock(return_value=[])
@@ -316,7 +316,7 @@ class TestRunCleanup:
 
         expired2 = MagicMock()
         expired2.cian_id = 222
-        expired2.created_at = datetime.utcnow() - timedelta(days=35)
+        expired2.created_at = datetime.now(timezone.utc) - timedelta(days=35)
 
         listing_repo = MagicMock()
         listing_repo.get_expired = AsyncMock(return_value=[expired1])

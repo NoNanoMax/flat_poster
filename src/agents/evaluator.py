@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -100,7 +101,7 @@ class EvaluationAgent:
             Parsed EvaluationResult.
         """
         messages = self._build_messages(listing)
-        raw_dict = await self._llm.evaluate_json(messages, max_tokens=4000)
+        raw_dict = await self._llm.evaluate_json(messages, max_tokens=8000)
         return self._parse_response(raw_dict)
 
     async def evaluate_and_save(
@@ -120,7 +121,92 @@ class EvaluationAgent:
             The EvaluationResult.
         """
         result = await self.evaluate(listing)
+        await self._persist_result(session, listing, result)
+        return result
 
+    async def evaluate_batch(
+        self,
+        session: AsyncSession,
+        limit: int = 10,
+        max_concurrent: int = 5,
+    ) -> list[EvaluationResult]:
+        """Evaluate all pending listings up to limit.
+
+        LLM calls run in parallel (IO-bound), DB writes run sequentially (SQLite).
+
+        Args:
+            session: Active DB session.
+            limit: Max listings to evaluate.
+            max_concurrent: Max parallel LLM requests (tune for your GPU).
+
+        Returns:
+            List of EvaluationResults (only successful ones).
+        """
+        repo = ListingRepo(session)
+        listings = await repo.get_pending_evaluation(limit=limit)
+
+        if not listings:
+            return []
+
+        logger.info(
+            "Evaluating batch of {} listings (max_concurrent={})",
+            len(listings),
+            max_concurrent,
+        )
+
+        # ── Phase 1: Mark all as evaluating (sequential DB) ──────────────────
+        for listing in listings:
+            await repo.set_status(listing.cian_id, "evaluating")  # type: ignore[arg-type]
+        await session.commit()
+
+        # ── Phase 2: LLM calls in parallel ───────────────────────────────────
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def _eval_one(listing: Listing) -> tuple[Listing, EvaluationResult | Exception]:
+            async with semaphore:
+                try:
+                    result = await self.evaluate(listing)
+                    return listing, result
+                except Exception as exc:
+                    logger.error("LLM failed for cian_id={}: {}", listing.cian_id, exc)
+                    return listing, exc
+
+        tasks = [_eval_one(item) for item in listings]
+        raw_results = await asyncio.gather(*tasks)
+
+        # ── Phase 3: Persist results sequentially (SQLite) ───────────────────
+        results: list[EvaluationResult] = []
+        for listing, outcome in raw_results:
+            if isinstance(outcome, Exception):
+                # Rollback to "new" on failure
+                await repo.set_status(listing.cian_id, "new")  # type: ignore[arg-type]
+                continue
+
+            # outcome is EvaluationResult
+            result = outcome
+            await self._persist_result(session, listing, result)
+            results.append(result)
+
+        await session.commit()
+        logger.info(
+            "Batch evaluation done: {}/{} succeeded",
+            len(results),
+            len(listings),
+        )
+        return results
+
+    # ── Internal helpers ───────────────────────────────────────────────────
+
+    async def _persist_result(
+        self,
+        session: AsyncSession,
+        listing: Listing,
+        result: EvaluationResult,
+    ) -> None:
+        """Persist evaluation result to DB (no LLM involved).
+
+        Updates listing fields and creates an EvaluationLog entry.
+        """
         # Update listing
         listing.last_score = result.score
         listing.last_verdict = result.verdict
@@ -128,9 +214,9 @@ class EvaluationAgent:
 
         # Set next_check_at based on verdict
         if result.verdict == "warm":
-            listing.next_check_at = datetime.utcnow() + timedelta(hours=24)
+            listing.next_check_at = datetime.now(timezone.utc) + timedelta(hours=24)
         elif result.verdict == "cold":
-            listing.next_check_at = datetime.utcnow() + timedelta(hours=72)
+            listing.next_check_at = datetime.now(timezone.utc) + timedelta(hours=72)
         else:
             listing.next_check_at = None
 
@@ -159,35 +245,6 @@ class EvaluationAgent:
             result.score,
             result.verdict,
         )
-        return result
-
-    async def evaluate_batch(
-        self,
-        session: AsyncSession,
-        limit: int = 10,
-    ) -> list[EvaluationResult]:
-        """Evaluate all pending listings up to limit.
-
-        Args:
-            session: Active DB session.
-            limit: Max listings to evaluate.
-
-        Returns:
-            List of EvaluationResults.
-        """
-        repo = ListingRepo(session)
-        listings = await repo.get_pending_evaluation(limit=limit)
-
-        results: list[EvaluationResult] = []
-        for listing in listings:
-            try:
-                await repo.set_status(listing.cian_id, "evaluating")  # type: ignore[arg-type]
-                result = await self.evaluate_and_save(session, listing)
-                results.append(result)
-            except Exception as exc:
-                logger.error("Failed to evaluate cian_id={}: {}", listing.cian_id, exc)
-                await repo.set_status(listing.cian_id, "new")  # type: ignore[arg-type]
-        return results
 
     # ── Internal helpers ───────────────────────────────────────────────────
 

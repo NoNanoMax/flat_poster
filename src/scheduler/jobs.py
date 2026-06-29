@@ -2,18 +2,108 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import json
+from collections.abc import Awaitable
+from functools import wraps
+from typing import TypeVar
+
 from loguru import logger
 
 from src.agents.agent_runner import LLMClient
 from src.agents.evaluator import EvaluationAgent
 from src.cold_storage.manager import ColdStorageManager
+from src.config.queries import SearchParams
+from src.config.queries import SearchQuery as ConfigSearchQuery
 from src.config.settings import settings
 from src.db.engine import session_scope
+from src.db.models import SearchQuery as DBSearchQuery
 from src.db.repository import EvaluationRepo, ListingRepo, SearchQueryRepo
 from src.notifier.console import ConsoleNotifier, NotifierABC
 from src.notifier.formatter import ListingFormatter
 from src.notifier.telegram import TelegramNotifier
 from src.scrapers.cian import CianScraper
+
+# ── Retry wrapper for jobs ───────────────────────────────────────────────────
+
+T = TypeVar("T", bound=Awaitable[object])
+
+
+def retry_job(max_retries: int = 2, base_delay: float = 30.0):
+    """Decorator: retry an async job with exponential backoff on failure.
+
+    Args:
+        max_retries: Number of retries after the first attempt.
+        base_delay: Initial delay in seconds between retries.
+    """
+
+    def decorator(func: T) -> T:
+        @wraps(func)
+        async def wrapper(*args, **kwargs):  # type: ignore[no-untyped-def]
+            last_exc: Exception | None = None
+            for attempt in range(1 + max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < max_retries:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(
+                            "Job '{}' failed (attempt {}/{}): {} — retrying in {:.0f}s",
+                            func.__name__,
+                            attempt + 1,
+                            1 + max_retries,
+                            exc,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.critical(
+                            "Job '{}' FAILED after {} attempts: {}",
+                            func.__name__,
+                            1 + max_retries,
+                            last_exc,
+                        )
+                        # Alert via console (always) — in production this could
+                        # also send to Telegram or a monitoring system
+                        logger.critical(
+                            "🚨 CRITICAL: Job '{}' is DOWN — manual intervention required!",
+                            func.__name__,
+                        )
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator
+
+# ── DB → config converter ────────────────────────────────────────────────────
+
+
+def _to_config_query(db_q: DBSearchQuery) -> ConfigSearchQuery:
+    """Convert DB SearchQuery model to config SearchQuery dataclass for the scraper."""
+    params_dict: dict = {}
+    if db_q.query_params:
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
+            params_dict = json.loads(db_q.query_params)
+    return ConfigSearchQuery(
+        name=db_q.name,
+        enabled=db_q.enabled,
+        source=db_q.source,
+        interval_minutes=db_q.interval_minutes,
+        max_pages=db_q.max_pages,
+        params=SearchParams(
+            city=params_dict.get("city", "Москва"),
+            listing_type=params_dict.get("type", "secondary"),
+            rooms=params_dict.get("rooms", []),
+            price_from=params_dict.get("price_from"),
+            price_to=params_dict.get("price_to"),
+            area_from=params_dict.get("area_from"),
+            area_to=params_dict.get("area_to"),
+            build_year_from=params_dict.get("build_year_from"),
+            developer=params_dict.get("developer"),
+        ),
+    )
+
 
 # ── Notifier factory ─────────────────────────────────────────────────────────
 
@@ -28,14 +118,15 @@ def _get_notifier() -> NotifierABC:
 # ── Job: fetch_listings ──────────────────────────────────────────────────────
 
 
+@retry_job(max_retries=2, base_delay=30.0)
 async def fetch_listings_job() -> None:
     """Fetch new listings from Cian for all enabled search queries."""
     async with session_scope() as session:
         query_repo = SearchQueryRepo(session)
         listing_repo = ListingRepo(session)
-        queries = await query_repo.get_enabled()
+        db_queries = await query_repo.get_enabled()
 
-        if not queries:
+        if not db_queries:
             logger.info("Fetch listings: no enabled queries")
             return
 
@@ -43,7 +134,8 @@ async def fetch_listings_job() -> None:
         total_new = 0
         total_skipped = 0
 
-        for query in queries:
+        for db_q in db_queries:
+            query = _to_config_query(db_q)
             try:
                 listings = await scraper.fetch_search_page(query, page=1)
                 for brief in listings:
@@ -55,7 +147,10 @@ async def fetch_listings_job() -> None:
                         total_new += 1
                     else:
                         total_skipped += 1
+                # Commit after each query to avoid SQLite lock on large batches
+                await session.commit()
             except Exception as exc:
+                await session.rollback()
                 logger.error(
                     "Fetch listings error for query '{}': {}",
                     query.name,
@@ -66,13 +161,14 @@ async def fetch_listings_job() -> None:
             "Fetch listings: {} new, {} skipped, from {} queries",
             total_new,
             total_skipped,
-            len(queries),
+            len(db_queries),
         )
 
 
 # ── Job: fetch_details ───────────────────────────────────────────────────────
 
 
+@retry_job(max_retries=2, base_delay=30.0)
 async def fetch_details_job() -> None:
     """Fetch full details for new listings that are missing them."""
     async with session_scope() as session:
@@ -113,6 +209,7 @@ async def fetch_details_job() -> None:
 # ── Job: evaluate_new ────────────────────────────────────────────────────────
 
 
+@retry_job(max_retries=1, base_delay=60.0)
 async def evaluate_new_job() -> None:
     """Evaluate all new listings via LLM and notify for hot ones."""
     async with session_scope() as session:
@@ -168,6 +265,7 @@ async def evaluate_new_job() -> None:
 # ── Job: check_cold_storage ──────────────────────────────────────────────────
 
 
+@retry_job(max_retries=1, base_delay=60.0)
 async def check_cold_storage_job() -> None:
     """Re-check warm/cold listings in cold storage."""
     async with session_scope() as session:
@@ -194,6 +292,7 @@ async def check_cold_storage_job() -> None:
 # ── Job: cleanup ─────────────────────────────────────────────────────────────
 
 
+@retry_job(max_retries=1, base_delay=60.0)
 async def cleanup_job() -> None:
     """Remove expired listings from cold storage."""
     async with session_scope() as session:
